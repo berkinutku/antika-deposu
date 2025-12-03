@@ -28,7 +28,12 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./AntikaDeposu
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
