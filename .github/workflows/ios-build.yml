@@ -1,0 +1,75 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: AntikaDeposu/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./AntikaDeposu
+        run: npm ci
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+          working-directory: ./AntikaDeposu/ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: ./AntikaDeposu/ios
+        run: |
+          pod install
+
+      - name: Build iOS app
+        working-directory: ./AntikaDeposu/ios
+        run: |
+          xcodebuild -workspace AntikaDeposu.xcworkspace \
+            -scheme AntikaDeposu \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath ./build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create .app archive
+        working-directory: ./AntikaDeposu/ios
+        run: |
+          cd build/Build/Products/Release-iphonesimulator
+          zip -r AntikaDeposu.app.zip AntikaDeposu.app
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-build
+          path: AntikaDeposu/ios/build/Build/Products/Release-iphonesimulator/AntikaDeposu.app.zip
+          retention-days: 7
+
+      - name: Build IPA (for physical device testing)
+        working-directory: ./AntikaDeposu/ios
+        run: |
+          xcodebuild -workspace AntikaDeposu.xcworkspace \
+            -scheme AntikaDeposu \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath ./build/AntikaDeposu.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            archive || echo "IPA build skipped (requires code signing)"
+
+
